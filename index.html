@@ -159,7 +159,6 @@
                     <button onclick="userLogin()">Login</button>
                     <button class="secondary" onclick="userSignup()">Sign Up</button>
                 </div>
-                <!-- Add this line below -->
                 <button type="button" onclick="userResetPassword()" style="margin-top: 1rem; background: transparent; color: var(--primary); padding: 0; text-align: left; width: auto; font-size: 0.9rem;">Forgot your password?</button>
             </div>
 
@@ -172,13 +171,20 @@
                     <button class="secondary small" onclick="logout()">Sign Out</button>
                 </div>
 
-                <div class="card" id="shop-creation-card" style="max-width: 400px;">
-                    <h3>Create a Shop</h3>
-                    <input type="text" id="new-shop-name" placeholder="Shop Name">
-                    <button onclick="createShop()">Create Shop</button>
+                <div id="shop-selection-view">
+                    <h3 style="margin-bottom: 1rem;">Your Shops</h3>
+                    <div id="user-shops-list" class="grid" style="margin-bottom: 1.5rem;"></div>
+                    
+                    <button class="secondary small" onclick="document.getElementById('shop-creation-card').classList.toggle('hidden')">+ Create Another Shop</button>
+                    <div class="card hidden" id="shop-creation-card" style="max-width: 400px; margin-top: 1rem;">
+                        <h3>New Shop</h3>
+                        <input type="text" id="new-shop-name" placeholder="Shop Name">
+                        <button onclick="createShop()">Create Shop</button>
+                    </div>
                 </div>
 
                 <div class="card hidden" id="shop-management-card">
+                    <button class="secondary small" style="margin-bottom: 1rem;" onclick="closeCMS()">← Back to My Shops</button>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3>Manage Shop: <span id="cms-shop-name"></span></h3>
                         <button class="small" style="background-color: #10B981;" onclick="showMerchantOrders()">📥 View Live Orders</button>
@@ -186,9 +192,14 @@
                     
                     <hr style="border: 1px solid var(--border); margin: 1rem 0;">
                     
-                    <h4>Store Branding</h4>
+                    <h4>Store Settings</h4>
+                    <label style="font-size: 0.85rem; font-weight: 600;">Banner Image URL</label>
                     <input type="text" id="cms-banner-url" placeholder="Paste Image URL for Banner">
-                    <button class="secondary small" onclick="updateStoreBanner()">Save Banner</button>
+                    
+                    <label style="font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem; display: block;">Category Order (Comma separated)</label>
+                    <input type="text" id="cms-category-order" placeholder="e.g. Mains, Sides, Drinks, Desserts">
+                    
+                    <button class="secondary small" onclick="updateStoreSettings()">Save Settings</button>
 
                     <hr style="border: 1px solid var(--border); margin: 1.5rem 0;">
                     
@@ -327,8 +338,13 @@
         // --- STATE MANAGEMENT ---
         let cart = [];
         let currentMerchantId = null;
+        
+        // Multi-tenant Auth & CMS State
         let currentUser = null;
-        let userOwnedShopId = null; 
+        let userShops = []; 
+        let activeCmsShopId = null; 
+
+        // Data caching
         let currentItemsData = []; 
         let activeConfiguringItem = null; 
 
@@ -348,12 +364,12 @@
             }
         };
 
-        window.showMenu = async (merchantId, merchantName, merchantDesc, bannerUrl) => {
+        window.showMenu = async (merchantId, merchantName, merchantDesc, bannerUrl, categoryOrder) => {
             currentMerchantId = merchantId; hideAllViews(); document.getElementById('view-menu').classList.remove('hidden');
             document.getElementById('store-title').innerText = merchantName; document.getElementById('store-desc').innerText = merchantDesc || "";
             const banner = document.getElementById('store-banner-img');
             if(bannerUrl && bannerUrl !== 'null') { banner.src = bannerUrl; banner.classList.remove('hidden'); } else { banner.classList.add('hidden'); }
-            fetchItems(merchantId);
+            fetchItems(merchantId, categoryOrder);
             window.history.pushState({path: `?shop=${merchantId}`},'',`?shop=${merchantId}`);
         };
 
@@ -362,17 +378,19 @@
         // --- CUSTOMER UI: FETCH ITEMS ---
         async function fetchMerchants() {
             const { data: merchants } = await supabase.from('merchants').select('*');
-            document.getElementById('merchants-container').innerHTML = (merchants||[]).map(m => `
-                <div class="card" onclick="showMenu('${m.id}', '${m.name}', '${m.description || ''}', '${m.banner_url || ''}')">
+            document.getElementById('merchants-container').innerHTML = (merchants||[]).map(m => {
+                const escapeQuotes = (str) => (str||'').replace(/'/g, "\\'");
+                return `
+                <div class="card" onclick="showMenu('${m.id}', '${escapeQuotes(m.name)}', '${escapeQuotes(m.description)}', '${m.banner_url || ''}', '${escapeQuotes(m.category_order)}')">
                     ${m.banner_url ? `<img src="${m.banner_url}" class="merchant-banner">` : ''}
                     ${m.is_guest_allowed ? '<span class="badge">Guest Orders Allowed</span>' : ''}
                     <div class="merchant-title">${m.name}</div>
                     <p style="color: #64748B; font-size: 0.9rem;">${m.description || 'Click to view menu'}</p>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
-        async function fetchItems(merchantId) {
+        async function fetchItems(merchantId, categoryOrderStr = "") {
             const { data: items } = await supabase.from('items').select(`
                 id, name, description, price, image_url, category,
                 customization_groups (
@@ -391,6 +409,7 @@
                 return;
             }
 
+            // Group by category
             const grouped = currentItemsData.reduce((acc, item) => {
                 const cat = item.category || 'Uncategorized';
                 if(!acc[cat]) acc[cat] = [];
@@ -398,10 +417,25 @@
                 return acc;
             }, {});
 
+            // Sorting Logic based on merchant's predefined array
+            const orderArr = categoryOrderStr ? categoryOrderStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
+            
+            const sortedCategories = Object.keys(grouped).sort((a, b) => {
+                let idxA = orderArr.indexOf(a.toLowerCase());
+                let idxB = orderArr.indexOf(b.toLowerCase());
+                
+                if (idxA === -1 && idxB === -1) return a.localeCompare(b); // Alphabetical fallback
+                if (idxA === -1) return 1; // Push unlisted to bottom
+                if (idxB === -1) return -1;
+                
+                return idxA - idxB;
+            });
+
             let navHTML = '<h4 style="margin-bottom:1rem; color:var(--text-muted);">Categories</h4>';
             let itemsHTML = '';
 
-            for (const [catName, catItems] of Object.entries(grouped)) {
+            for (const catName of sortedCategories) {
+                const catItems = grouped[catName];
                 const catId = `cat-${catName.replace(/\s+/g, '-')}`;
                 navHTML += `<a href="#${catId}">${catName}</a>`;
                 
@@ -540,7 +574,6 @@
             const orderItemsInsert = cart.map(item => ({ order_id: orderData[0].id, item_id: item.id, quantity: item.qty, special_notes: item.finalNote }));
             await supabase.from('order_items').insert(orderItemsInsert);
 
-            // Clean up and transport immediately to beautiful tracking view
             document.getElementById('guest-name').value = '';
             document.getElementById('modal-checkout').classList.add('hidden'); 
             cart = [];
@@ -589,48 +622,105 @@
             `;
         };
 
-        // --- MERCHANT AUTH & CMS ---
+        // --- MULTI-TENANT MERCHANT AUTH & CMS ---
         async function checkActiveSession() {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-                currentUser = session.user; document.getElementById('header-status').innerText = currentUser.email.split('@')[0];
-                document.getElementById('auth-btn').innerText = "Dashboard"; document.getElementById('auth-form').classList.add('hidden'); document.getElementById('user-dashboard').classList.remove('hidden');
-                const { data: shop } = await supabase.from('merchants').select('*').eq('owner_id', currentUser.id).single();
-                if (shop) {
-                    userOwnedShopId = shop.id; document.getElementById('shop-creation-card').classList.add('hidden'); document.getElementById('shop-management-card').classList.remove('hidden');
-                    document.getElementById('cms-shop-name').innerText = shop.name; document.getElementById('cms-banner-url').value = shop.banner_url || ''; loadCMSItems();
-                } else { document.getElementById('shop-creation-card').classList.remove('hidden'); document.getElementById('shop-management-card').classList.add('hidden'); }
+                currentUser = session.user; 
+                document.getElementById('header-status').innerText = currentUser.email.split('@')[0];
+                document.getElementById('auth-btn').innerText = "Dashboard"; 
+                document.getElementById('auth-form').classList.add('hidden'); 
+                document.getElementById('user-dashboard').classList.remove('hidden');
+                
+                // Fetch ALL shops owned by user
+                const { data: shops } = await supabase.from('merchants').select('*').eq('owner_id', currentUser.id);
+                userShops = shops || [];
+                
+                renderUserShops();
+                
             } else {
-                currentUser = null; document.getElementById('header-status').innerText = "Guest"; document.getElementById('auth-btn').innerText = "Login / Sign Up";
+                currentUser = null; userShops = []; activeCmsShopId = null;
+                document.getElementById('header-status').innerText = "Guest"; document.getElementById('auth-btn').innerText = "Login / Sign Up";
                 document.getElementById('auth-form').classList.remove('hidden'); document.getElementById('user-dashboard').classList.add('hidden');
             }
         }
+
+        function renderUserShops() {
+            document.getElementById('shop-selection-view').classList.remove('hidden');
+            document.getElementById('shop-management-card').classList.add('hidden');
+            
+            const listContainer = document.getElementById('user-shops-list');
+            if (userShops.length === 0) {
+                listContainer.innerHTML = '<p style="color: var(--text-muted);">You do not own any shops yet.</p>';
+            } else {
+                listContainer.innerHTML = userShops.map(shop => `
+                    <div class="card" onclick="openCMS('${shop.id}')">
+                        <h4 style="margin-bottom: 0.5rem; color: var(--primary);">${shop.name}</h4>
+                        <span style="font-size: 0.85rem; font-weight: bold;">Manage Shop ➔</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        window.openCMS = (shopId) => {
+            activeCmsShopId = shopId;
+            const shop = userShops.find(s => s.id === shopId);
+            
+            document.getElementById('shop-selection-view').classList.add('hidden');
+            document.getElementById('shop-management-card').classList.remove('hidden');
+            
+            document.getElementById('cms-shop-name').innerText = shop.name; 
+            document.getElementById('cms-banner-url').value = shop.banner_url || ''; 
+            document.getElementById('cms-category-order').value = shop.category_order || ''; 
+            
+            loadCMSItems();
+        };
+
+        window.closeCMS = () => {
+            activeCmsShopId = null;
+            renderUserShops();
+        };
 
         window.userLogin = async () => { const { error } = await supabase.auth.signInWithPassword({ email: document.getElementById('user-email').value, password: document.getElementById('user-password').value }); if(error) alert(error.message); else checkActiveSession(); };
         window.userSignup = async () => { const { error } = await supabase.auth.signUp({ email: document.getElementById('user-email').value, password: document.getElementById('user-password').value }); if(error) alert(error.message); else { alert("Success!"); checkActiveSession(); }};
         window.userResetPassword = async () => {
             const email = document.getElementById('user-email').value.trim();
             if (!email) return alert("Please type your email into the box first, then click Forgot Password.");
-            
-            // Send the email and tell Supabase to redirect them back to this exact page
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: window.location.href 
-            });
-            
-            if (error) alert("Error: " + error.message);
-            else alert("Password recovery email sent! Please check your inbox.");
+            const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+            if (error) alert("Error: " + error.message); else alert("Password recovery email sent! Please check your inbox.");
         };
 
         window.logout = async () => { await supabase.auth.signOut(); checkActiveSession(); showHome(); };
-        window.createShop = async () => { const { error } = await supabase.from('merchants').insert([{ name: document.getElementById('new-shop-name').value, owner_id: currentUser.id, is_guest_allowed: true }]); if (!error) { alert("Shop created!"); checkActiveSession(); fetchMerchants(); } };
         
-        window.updateStoreBanner = async () => { 
-            const url = document.getElementById('cms-banner-url').value;
-            const { error } = await supabase.from('merchants').update({ banner_url: url }).eq('id', userOwnedShopId); 
-            if (error) {
-                alert("Database Error: " + error.message);
+        window.createShop = async () => { 
+            const name = document.getElementById('new-shop-name').value;
+            if(!name) return alert("Shop name required.");
+            const { error } = await supabase.from('merchants').insert([{ name: name, owner_id: currentUser.id, is_guest_allowed: true }]); 
+            if (!error) { 
+                alert("Shop created!"); 
+                document.getElementById('new-shop-name').value = '';
+                document.getElementById('shop-creation-card').classList.add('hidden');
+                checkActiveSession(); 
+                fetchMerchants(); 
             } else {
-                alert("Banner Updated Successfully!"); 
+                alert(error.message);
+            }
+        };
+        
+        window.updateStoreSettings = async () => { 
+            if(!activeCmsShopId) return;
+            const url = document.getElementById('cms-banner-url').value;
+            const catOrder = document.getElementById('cms-category-order').value;
+            
+            const { error } = await supabase.from('merchants').update({ 
+                banner_url: url,
+                category_order: catOrder
+            }).eq('id', activeCmsShopId); 
+            
+            if (error) alert("Database Error: " + error.message);
+            else {
+                alert("Settings Updated Successfully!"); 
+                checkActiveSession(); // Re-sync local userShops array
                 fetchMerchants(); 
             }
         };
@@ -638,7 +728,8 @@
         // --- MERCHANT ITEM MODAL ---
         let currentCMSItems = [];
         async function loadCMSItems() {
-            const { data } = await supabase.from('items').select(`id, name, description, price, image_url, category, customization_groups(id, name)`).eq('merchant_id', userOwnedShopId);
+            if(!activeCmsShopId) return;
+            const { data } = await supabase.from('items').select(`id, name, description, price, image_url, category, customization_groups(id, name)`).eq('merchant_id', activeCmsShopId);
             currentCMSItems = data || [];
             document.getElementById('cms-item-list').innerHTML = currentCMSItems.map(i => `
                 <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;" onclick="openMerchantItemModal('${i.id}')">
@@ -683,7 +774,7 @@
         window.saveMerchantItem = async () => {
             const id = document.getElementById('cms-item-id').value;
             const payload = {
-                merchant_id: userOwnedShopId, name: document.getElementById('cms-item-name').value, category: document.getElementById('cms-item-category').value || 'Uncategorized',
+                merchant_id: activeCmsShopId, name: document.getElementById('cms-item-name').value, category: document.getElementById('cms-item-category').value || 'Uncategorized',
                 description: document.getElementById('cms-item-desc').value, price: parseFloat(document.getElementById('cms-item-price').value) || 0, image_url: document.getElementById('cms-item-image').value
             };
             if(!payload.name) return alert("Name required");
@@ -721,11 +812,11 @@
 
         // --- MERCHANT LIVE ORDERS ---
         async function fetchMerchantOrders() {
-            if(!userOwnedShopId) return;
+            if(!activeCmsShopId) return;
             const { data: orders } = await supabase.from('orders').select(`
                 id, tracking_code, guest_name, status, created_at,
                 order_items( quantity, special_notes, items(name) )
-            `).eq('merchant_id', userOwnedShopId).order('created_at', { ascending: false });
+            `).eq('merchant_id', activeCmsShopId).order('created_at', { ascending: false });
 
             const cols = { 'PROCESSING': '', 'PREPARING': '', 'COMPLETED': '', 'CANCELED': '' };
 
@@ -761,27 +852,24 @@
         // --- INIT ---
         const urlParams = new URLSearchParams(window.location.search);
         const sharedShopId = urlParams.get('shop');
-        if (sharedShopId) { supabase.from('merchants').select('*').eq('id', sharedShopId).single().then(({data}) => { if (data) showMenu(sharedShopId, data.name, data.description, data.banner_url); else showHome(); }); } else { showHome(); }
-        fetchMerchants();
+        if (sharedShopId) { 
+            supabase.from('merchants').select('*').eq('id', sharedShopId).single().then(({data}) => { 
+                if (data) showMenu(sharedShopId, data.name, data.description, data.banner_url, data.category_order); 
+                else showHome(); 
+            }); 
+        } else { showHome(); }
         
-        // --- AUTH STATE LISTENER ---
-        // This listens for all auth events, including when a user returns from a password reset email
+        fetchMerchants(); 
+        
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'PASSWORD_RECOVERY') {
-                // The user clicked the reset link in their email
                 const newPassword = prompt("Welcome back! What would you like your new password to be?");
-                
                 if (newPassword) {
                     const { error } = await supabase.auth.updateUser({ password: newPassword });
-                    if (error) {
-                        alert("Failed to update password: " + error.message);
-                    } else {
-                        alert("Success! Your password has been updated.");
-                    }
+                    if (error) alert("Failed to update password: " + error.message);
+                    else alert("Success! Your password has been updated.");
                 }
             }
-            
-            // Always check the session state to update the UI (Login vs Dashboard)
             checkActiveSession();
         });
     </script>
