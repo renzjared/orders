@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renz-Bot | Orders</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+        
+        :root {
+            --bg-color: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --primary: #FF5252;
+            --primary-hover: #FF3B3B;
+            --text-main: #1E293B;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', sans-serif; }
+        html { scroll-behavior: smooth; }
+        body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; }
+
+        header {
+            background: var(--card-bg); padding: 1.25rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        h1 { font-weight: 800; font-size: 1.5rem; color: var(--primary); cursor: pointer; }
+        .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+        .hidden { display: none !important; }
+
+        /* Grids & Cards */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
+        .card {
+            background: var(--card-bg); border-radius: var(--radius); padding: 1.5rem;
+            border: 1px solid var(--border); transition: all 0.2s; cursor: pointer; overflow: hidden;
+        }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.06); border-color: var(--primary); }
+        
+        .merchant-banner { width: calc(100% + 3rem); height: 120px; object-fit: cover; margin: -1.5rem -1.5rem 1rem -1.5rem; background-color: #E2E8F0; }
+        .store-header-banner { width: 100%; height: 200px; object-fit: cover; border-radius: var(--radius); margin-bottom: 1.5rem; background-color: #E2E8F0; }
+        .merchant-title { font-weight: 700; font-size: 1.25rem; margin-bottom: 0.25rem; }
+        .badge { background: #DEF7EC; color: #03543F; font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.5rem; border-radius: 8px; margin-bottom: 1rem; display: inline-block;}
+
+        /* Layout (3 Column for Menu) */
+        .menu-layout { display: flex; gap: 2rem; align-items: flex-start; }
+        @media (max-width: 900px) { .menu-layout { flex-direction: column; } }
+        
+        .cat-nav { width: 200px; background: var(--card-bg); border-radius: var(--radius); padding: 1.5rem; border: 1px solid var(--border); position: sticky; top: 100px; flex-shrink: 0;}
+        .cat-nav a { display: block; padding: 0.5rem 0; color: var(--text-main); text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--border); transition: color 0.2s;}
+        .cat-nav a:hover { color: var(--primary); }
+        .cat-nav a:last-child { border-bottom: none; }
+        @media (max-width: 900px) { .cat-nav { width: 100%; position: static; display: flex; overflow-x: auto; gap: 1rem; padding: 1rem; } .cat-nav a { border-bottom: none; white-space: nowrap; } }
+
+        .menu-items { flex: 1; width: 100%; }
+        .sidebar { width: 300px; background: var(--card-bg); border-radius: var(--radius); padding: 1.5rem; border: 1px solid var(--border); position: sticky; top: 100px; flex-shrink: 0;}
+        @media (max-width: 900px) { .sidebar { width: 100%; position: static; } }
+
+        /* Buttons & Inputs */
+        button {
+            background-color: var(--primary); color: white; border: none; padding: 0.75rem 1rem;
+            border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: background 0.2s; width: 100%;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.secondary { background-color: #F1F5F9; color: var(--text-main); }
+        button.secondary:hover { background-color: #E2E8F0; }
+        button.small { padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; }
+        button.danger { background-color: #ef4444; }
+        button.danger:hover { background-color: #dc2626; }
+        button.qty-btn { width: 30px; height: 30px; padding: 0; border-radius: 6px; background: #F1F5F9; color: black; font-weight: bold; border: 1px solid var(--border); }
+
+        input, textarea, select {
+            width: 100%; padding: 0.75rem; margin-top: 0.5rem; border: 2px solid var(--border);
+            border-radius: 10px; font-size: 1rem; outline: none; transition: border 0.2s; margin-bottom: 1rem; font-family: 'Nunito', sans-serif;
+        }
+        input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+
+        /* Menu Items */
+        .category-header { font-size: 1.5rem; font-weight: 800; margin: 2rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 1rem; gap: 1.5rem;}
+        .item-details { flex: 1; }
+        .item-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; min-width: 120px; }
+        .item-image { width: 100px; height: 100px; object-fit: cover; border-radius: 12px; background: #F1F5F9; flex-shrink: 0;}
+        .price { font-weight: 800; color: var(--primary); font-size: 1.1rem; }
+        
+        .customization-box { background: #F8FAFC; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid var(--border); }
+        .opt-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .opt-row input { width: auto; margin: 0 0.5rem 0 0; }
+
+        /* Kanban Orders */
+        .kanban-board { display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; }
+        .kanban-col { flex: 1; min-width: 250px; background: #F1F5F9; border-radius: var(--radius); padding: 1rem; }
+        .kanban-col h4 { margin-bottom: 1rem; text-align: center; color: var(--text-muted); }
+        .order-ticket { background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: var(--card-bg); padding: 2rem; border-radius: var(--radius); width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto;}
+
+        /* Tracking Status Badge */
+        .status-badge { color: white; text-align: center; padding: 1rem; border-radius: 8px; font-weight: 800; font-size: 1.25rem; letter-spacing: 2px; margin-bottom: 1.5rem; text-transform: uppercase;}
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 onclick="showHome()">Renz-Bot | Orders</h1>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <button class="secondary small" onclick="showTracking()">🔍 Track</button>
+            <div style="font-weight: 600; margin-left: 1rem;" id="header-status">Guest</div>
+            <button class="secondary small" id="auth-btn" onclick="showAuth()">Login / Sign Up</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="view-home" class="view-section">
+            <h2 style="margin-bottom: 1.5rem;">Explore Shops</h2>
+            <div class="grid" id="merchants-container"></div>
+        </div>
+
+        <div id="view-menu" class="view-section hidden">
+            <button class="secondary small" style="margin-bottom: 1rem;" onclick="showHome()">← Back to Shops</button>
+            <img id="store-banner-img" class="store-header-banner hidden" src="" alt="Store Banner">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+                <div>
+                    <h2 id="store-title" style="font-size: 2rem;">Store Name</h2>
+                    <p id="store-desc" style="color: var(--text-muted);"></p>
+                </div>
+                <button class="secondary small" onclick="copyShopLink()">🔗 Share Shop</button>
+            </div>
+            
+            <div class="menu-layout">
+                <div class="cat-nav" id="category-nav"></div>
+                <div class="menu-items" id="items-container"></div>
+
+                <div class="sidebar">
+                    <h3 style="margin-bottom: 1rem;">Your Cart</h3>
+                    <div id="cart-items" style="min-height: 100px; margin-bottom: 1rem; color: #64748B;">Cart is empty.</div>
+                    <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 1.25rem; margin-bottom: 1rem;">
+                        <span>Total:</span> <span id="cart-total">₱0.00</span>
+                    </div>
+                    <button id="btn-checkout" onclick="initiateCheckout()" disabled>Checkout</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-auth" class="view-section hidden">
+            <h2 style="margin-bottom: 1.5rem;">Account Dashboard</h2>
+            
+            <div id="auth-form" class="card" style="max-width: 400px; margin-bottom: 2rem;">
+                <h3>Login to Order or Manage Shop</h3>
+                <input type="email" id="user-email" placeholder="Email">
+                <input type="password" id="user-password" placeholder="Password">
+                <div style="display: flex; gap: 1rem;">
+                    <button onclick="userLogin()">Login</button>
+                    <button class="secondary" onclick="userSignup()">Sign Up</button>
+                </div>
+            </div>
+
+            <div id="user-dashboard" class="hidden">
+                <div class="card" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3>Your Profile</h3>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Logged in securely.</p>
+                    </div>
+                    <button class="secondary small" onclick="logout()">Sign Out</button>
+                </div>
+
+                <div class="card" id="shop-creation-card" style="max-width: 400px;">
+                    <h3>Create a Shop</h3>
+                    <input type="text" id="new-shop-name" placeholder="Shop Name">
+                    <button onclick="createShop()">Create Shop</button>
+                </div>
+
+                <div class="card hidden" id="shop-management-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Manage Shop: <span id="cms-shop-name"></span></h3>
+                        <button class="small" style="background-color: #10B981;" onclick="showMerchantOrders()">📥 View Live Orders</button>
+                    </div>
+                    
+                    <hr style="border: 1px solid var(--border); margin: 1rem 0;">
+                    
+                    <h4>Store Branding</h4>
+                    <input type="text" id="cms-banner-url" placeholder="Paste Image URL for Banner">
+                    <button class="secondary small" onclick="updateStoreBanner()">Save Banner</button>
+
+                    <hr style="border: 1px solid var(--border); margin: 1.5rem 0;">
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h4>Menu Items</h4>
+                        <button class="small" onclick="openMerchantItemModal()">+ Add New Item</button>
+                    </div>
+                    <div id="cms-item-list" style="margin-top: 1rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-orders" class="view-section hidden">
+            <button class="secondary small" style="margin-bottom: 1rem;" onclick="showAuth()">← Back to Dashboard</button>
+            <h2 style="margin-bottom: 1.5rem;">Live Order Tracker</h2>
+            
+            <div class="kanban-board">
+                <div class="kanban-col">
+                    <h4>📥 Processing</h4>
+                    <div id="orders-PROCESSING"></div>
+                </div>
+                <div class="kanban-col">
+                    <h4>🍳 Preparing</h4>
+                    <div id="orders-PREPARING"></div>
+                </div>
+                <div class="kanban-col">
+                    <h4>✅ Completed</h4>
+                    <div id="orders-COMPLETED"></div>
+                </div>
+                <div class="kanban-col" style="opacity: 0.7;">
+                    <h4>❌ Canceled</h4>
+                    <div id="orders-CANCELED"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-tracking" class="view-section hidden">
+            <h2 style="margin-bottom: 1.5rem; text-align: center;">Track Your Order</h2>
+            <div class="card" style="max-width: 500px; margin: 0 auto;">
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                    <input type="text" id="track-code-input" placeholder="Enter code (e.g. TKT-XXXXX)" style="margin: 0; text-transform: uppercase;">
+                    <button onclick="executeTracking()" style="width: auto;">Search</button>
+                </div>
+                <div id="tracking-result-container">
+                    <p style="color: var(--text-muted); text-align: center;">Enter your code above to see your live order status.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-customer-item" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 id="cust-modal-title" style="margin-bottom: 0.5rem;">Item Name</h2>
+            <p id="cust-modal-desc" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;"></p>
+            
+            <div id="cust-modal-options"></div>
+            
+            <label style="font-weight: 600; margin-top: 1rem; display: block;">Special Instructions</label>
+            <input type="text" id="cust-modal-note" placeholder="e.g. No onions">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+                <span style="font-weight: 800; font-size: 1.25rem;" id="cust-modal-price">₱0.00</span>
+                <div style="display: flex; gap: 1rem;">
+                    <button class="secondary" onclick="document.getElementById('modal-customer-item').classList.add('hidden')">Cancel</button>
+                    <button onclick="confirmAddToCart()">Add to Cart</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-checkout" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 0.5rem;">Almost there!</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Please provide a name so the merchant can call your ticket.</p>
+            <input type="text" id="guest-name" placeholder="e.g. Juan Dela Cruz">
+            <div style="display: flex; gap: 1rem;">
+                <button class="secondary" onclick="document.getElementById('modal-checkout').classList.add('hidden')">Cancel</button>
+                <button onclick="submitOrder()">Place Order</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-merchant-item" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 id="cms-item-modal-title" style="margin-bottom: 1rem;">Edit Item</h2>
+            <input type="hidden" id="cms-item-id">
+            
+            <label>Item Name</label>
+            <input type="text" id="cms-item-name">
+            <label>Category (e.g. Mains, Drinks)</label>
+            <input type="text" id="cms-item-category" placeholder="Leave blank for Uncategorized">
+            <label>Description</label>
+            <textarea id="cms-item-desc"></textarea>
+            <label>Base Price (₱)</label>
+            <input type="number" id="cms-item-price">
+            <label>Image URL</label>
+            <input type="text" id="cms-item-image">
+
+            <div id="cms-item-options-section" class="hidden">
+                <hr style="border: 1px solid var(--border); margin: 1.5rem 0;">
+                <h4>Current Customizations</h4>
+                <div id="cms-item-existing-options" style="margin-bottom: 1rem;"></div>
+                
+                <button class="secondary small" onclick="document.getElementById('cms-add-option-form').classList.toggle('hidden')">+ Add Option Group</button>
+                
+                <div id="cms-add-option-form" class="customization-box hidden">
+                    <label>Group Name (e.g. "Choose your Drink")</label>
+                    <input type="text" id="cust-group-name">
+                    <label>Input Type</label>
+                    <select id="cust-group-type"><option value="radio">Radio (Select One)</option><option value="checkbox">Checkbox (Multiple)</option></select>
+                    <div style="display:flex; align-items:center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="checkbox" id="cust-is-required" style="width:auto; margin:0;">
+                        <label for="cust-is-required" style="margin:0;">Required?</label>
+                    </div>
+                    <label>Max Selections (If Checkbox)</label>
+                    <input type="number" id="cust-max-selections" value="1">
+                    <label>Options (Format: Name,Price per line)</label>
+                    <textarea id="cust-options-list" rows="3" placeholder="Coke, 0&#10;Add Bacon, 25"></textarea>
+                    <button class="small" onclick="saveCustomization()">Save Option Group</button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button class="secondary" onclick="document.getElementById('modal-merchant-item').classList.add('hidden')">Cancel</button>
+                <button onclick="saveMerchantItem()">Save Item</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        // --- 1. SUPABASE INITIALIZATION ---
+        const supabase = createClient('https://ukctakimyzttevsbvbfh.supabase.co/', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrY3Rha2lteXp0dGV2c2J2YmZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MTY3NDIsImV4cCI6MjA5NTE5Mjc0Mn0.TqhSIeIesGTKZembZ_HBUkxju-fO60NZEvyRMQkiG3M');
+
+        // --- STATE MANAGEMENT ---
+        let cart = [];
+        let currentMerchantId = null;
+        let currentUser = null;
+        let userOwnedShopId = null; 
+        let currentItemsData = []; 
+        let activeConfiguringItem = null; 
+
+        // --- ROUTING ENGINE ---
+        function hideAllViews() { document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden')); }
+
+        window.showHome = () => { hideAllViews(); document.getElementById('view-home').classList.remove('hidden'); cart = []; updateCartUI(); window.history.pushState({}, document.title, window.location.pathname); };
+        window.showAuth = () => { hideAllViews(); document.getElementById('view-auth').classList.remove('hidden'); checkActiveSession(); };
+        window.showMerchantOrders = () => { hideAllViews(); document.getElementById('view-orders').classList.remove('hidden'); fetchMerchantOrders(); };
+        
+        window.showTracking = (code = null) => { 
+            hideAllViews(); 
+            document.getElementById('view-tracking').classList.remove('hidden'); 
+            if (code) {
+                document.getElementById('track-code-input').value = code;
+                executeTracking();
+            }
+        };
+
+        window.showMenu = async (merchantId, merchantName, merchantDesc, bannerUrl) => {
+            currentMerchantId = merchantId; hideAllViews(); document.getElementById('view-menu').classList.remove('hidden');
+            document.getElementById('store-title').innerText = merchantName; document.getElementById('store-desc').innerText = merchantDesc || "";
+            const banner = document.getElementById('store-banner-img');
+            if(bannerUrl && bannerUrl !== 'null') { banner.src = bannerUrl; banner.classList.remove('hidden'); } else { banner.classList.add('hidden'); }
+            fetchItems(merchantId);
+            window.history.pushState({path: `?shop=${merchantId}`},'',`?shop=${merchantId}`);
+        };
+
+        window.copyShopLink = () => { navigator.clipboard.writeText(window.location.href).then(() => alert('Shop link copied!')); };
+
+        // --- CUSTOMER UI: FETCH ITEMS ---
+        async function fetchMerchants() {
+            const { data: merchants } = await supabase.from('merchants').select('*');
+            document.getElementById('merchants-container').innerHTML = (merchants||[]).map(m => `
+                <div class="card" onclick="showMenu('${m.id}', '${m.name}', '${m.description || ''}', '${m.banner_url || ''}')">
+                    ${m.banner_url ? `<img src="${m.banner_url}" class="merchant-banner">` : ''}
+                    ${m.is_guest_allowed ? '<span class="badge">Guest Orders Allowed</span>' : ''}
+                    <div class="merchant-title">${m.name}</div>
+                    <p style="color: #64748B; font-size: 0.9rem;">${m.description || 'Click to view menu'}</p>
+                </div>
+            `).join('');
+        }
+
+        async function fetchItems(merchantId) {
+            const { data: items } = await supabase.from('items').select(`
+                id, name, description, price, image_url, category,
+                customization_groups (
+                    id, name, input_type, is_required, max_selections,
+                    customization_options ( id, name, additional_price )
+                )
+            `).eq('merchant_id', merchantId);
+            
+            currentItemsData = items || [];
+            const container = document.getElementById('items-container');
+            const navContainer = document.getElementById('category-nav');
+            
+            if(currentItemsData.length === 0) {
+                container.innerHTML = '<p>This shop hasn\'t added items.</p>';
+                navContainer.innerHTML = '';
+                return;
+            }
+
+            const grouped = currentItemsData.reduce((acc, item) => {
+                const cat = item.category || 'Uncategorized';
+                if(!acc[cat]) acc[cat] = [];
+                acc[cat].push(item);
+                return acc;
+            }, {});
+
+            let navHTML = '<h4 style="margin-bottom:1rem; color:var(--text-muted);">Categories</h4>';
+            let itemsHTML = '';
+
+            for (const [catName, catItems] of Object.entries(grouped)) {
+                const catId = `cat-${catName.replace(/\s+/g, '-')}`;
+                navHTML += `<a href="#${catId}">${catName}</a>`;
+                
+                itemsHTML += `<div id="${catId}"><h3 class="category-header">${catName}</h3>`;
+                itemsHTML += catItems.map(item => {
+                    const hasOptions = item.customization_groups && item.customization_groups.length > 0;
+                    return `
+                    <div class="item-row">
+                        ${item.image_url ? `<img src="${item.image_url}" class="item-image">` : ''}
+                        <div class="item-details">
+                            <h4 style="font-size: 1.1rem;">${item.name}</h4>
+                            <p style="color: var(--text-muted); font-size: 0.9rem;">${item.description || ''}</p>
+                        </div>
+                        <div class="item-actions">
+                            <div class="price">${item.price ? '₱' + item.price.toFixed(2) : 'Free'}</div>
+                            <button class="small" onclick="processAddToCart('${item.id}')">${hasOptions ? 'Configure +' : 'Add to Cart'}</button>
+                        </div>
+                    </div>
+                `}).join('');
+                itemsHTML += `</div>`;
+            }
+
+            navContainer.innerHTML = navHTML;
+            container.innerHTML = itemsHTML;
+        }
+
+        // --- CUSTOMER UI: CART & CUSTOMIZATION MODAL ---
+        window.processAddToCart = (itemId) => {
+            const itemDef = currentItemsData.find(i => i.id === itemId);
+            if (!itemDef.customization_groups || itemDef.customization_groups.length === 0) {
+                const existingItem = cart.find(c => c.id === itemId && c.finalNote === '');
+                if (existingItem) existingItem.qty += 1;
+                else cart.push({ id: itemId, name: itemDef.name, basePrice: itemDef.price || 0, finalNote: '', qty: 1 });
+                updateCartUI();
+            } else {
+                activeConfiguringItem = itemDef;
+                document.getElementById('cust-modal-title').innerText = itemDef.name;
+                document.getElementById('cust-modal-desc').innerText = itemDef.description || '';
+                document.getElementById('cust-modal-price').innerText = `₱${(itemDef.price || 0).toFixed(2)}`;
+                document.getElementById('cust-modal-note').value = '';
+
+                let custHTML = '';
+                itemDef.customization_groups.forEach(group => {
+                    custHTML += `<div class="customization-box">
+                        <div style="font-weight:700; margin-bottom:0.5rem;">${group.name} ${group.is_required ? '<span style="color:var(--primary)">*</span>' : ''}</div>
+                    `;
+                    group.customization_options.forEach(opt => {
+                        const priceStr = opt.additional_price > 0 ? `(+₱${opt.additional_price})` : '';
+                        if(group.input_type === 'radio') {
+                            custHTML += `<div class="opt-row"><label><input type="radio" name="grp_${group.id}" value="${opt.id}" data-price="${opt.additional_price}" data-name="${opt.name}" onchange="updateModalPrice()"> ${opt.name} ${priceStr}</label></div>`;
+                        } else {
+                            custHTML += `<div class="opt-row"><label><input type="checkbox" class="chk_${group.id}" value="${opt.id}" data-price="${opt.additional_price}" data-name="${opt.name}" onchange="checkMax(this, '${group.id}', ${group.max_selections}); updateModalPrice()"> ${opt.name} ${priceStr}</label></div>`;
+                        }
+                    });
+                    custHTML += `</div>`;
+                });
+                document.getElementById('cust-modal-options').innerHTML = custHTML;
+                document.getElementById('modal-customer-item').classList.remove('hidden');
+            }
+        };
+
+        window.checkMax = (checkbox, groupId, max) => { const checked = document.querySelectorAll(`.chk_${groupId}:checked`); if(checked.length > max) checkbox.checked = false; };
+        window.updateModalPrice = () => { let total = activeConfiguringItem.price || 0; document.querySelectorAll('#cust-modal-options input:checked').forEach(input => { total += parseFloat(input.dataset.price); }); document.getElementById('cust-modal-price').innerText = `₱${total.toFixed(2)}`; };
+
+        window.confirmAddToCart = () => {
+            let finalPrice = activeConfiguringItem.price || 0; let optionsTextArray = []; let isValid = true;
+            activeConfiguringItem.customization_groups.forEach(group => {
+                let selectedInGroup = 0;
+                if(group.input_type === 'radio') {
+                    const radio = document.querySelector(`input[name="grp_${group.id}"]:checked`);
+                    if(radio) { selectedInGroup++; finalPrice += parseFloat(radio.dataset.price); optionsTextArray.push(radio.dataset.name); }
+                } else {
+                    const checkboxes = document.querySelectorAll(`.chk_${group.id}:checked`);
+                    checkboxes.forEach(chk => { selectedInGroup++; finalPrice += parseFloat(chk.dataset.price); optionsTextArray.push(chk.dataset.name); });
+                }
+                if(group.is_required && selectedInGroup === 0) { isValid = false; alert(`Please select an option for: ${group.name}`); }
+            });
+
+            if(!isValid) return;
+
+            const note = document.getElementById('cust-modal-note').value;
+            const optionsString = optionsTextArray.join(', ');
+            let combinedNote = note;
+            if(optionsString) combinedNote = `Options: ${optionsString}` + (note ? ` | Note: ${note}` : '');
+
+            const existingItem = cart.find(c => c.id === activeConfiguringItem.id && c.finalNote === combinedNote);
+            if(existingItem) existingItem.qty += 1; 
+            else cart.push({ id: activeConfiguringItem.id, name: activeConfiguringItem.name, basePrice: finalPrice, finalNote: combinedNote, qty: 1 });
+            
+            updateCartUI(); document.getElementById('modal-customer-item').classList.add('hidden');
+        };
+
+        window.updateQty = (index, delta) => { cart[index].qty += delta; if(cart[index].qty <= 0) cart.splice(index, 1); updateCartUI(); };
+
+        function updateCartUI() {
+            const container = document.getElementById('cart-items');
+            if (cart.length === 0) { container.innerHTML = 'Cart is empty.'; document.getElementById('cart-total').innerText = '₱0.00'; document.getElementById('btn-checkout').disabled = true; return; }
+            document.getElementById('btn-checkout').disabled = false;
+            container.innerHTML = cart.map((c, index) => `
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem; font-size:0.95rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.5rem;">
+                    <div style="flex:1;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <button class="qty-btn" onclick="updateQty(${index}, -1)">-</button>
+                            <span style="font-weight:bold; width:20px; text-align:center;">${c.qty}</span>
+                            <button class="qty-btn" onclick="updateQty(${index}, 1)">+</button>
+                            <strong style="margin-left:0.5rem;">${c.name}</strong>
+                        </div>
+                        ${c.finalNote ? `<div style="color:var(--text-muted); font-size:0.85rem; margin-top:0.25rem;">${c.finalNote}</div>` : ''}
+                    </div>
+                    <div style="font-weight:bold; margin-left:1rem;">₱${(c.basePrice * c.qty).toFixed(2)}</div>
+                </div>
+            `).join('');
+            document.getElementById('cart-total').innerText = `₱${cart.reduce((sum, item) => sum + (item.basePrice * item.qty), 0).toFixed(2)}`;
+        }
+
+        window.initiateCheckout = () => {
+            if (currentUser) {
+                const accountName = currentUser.email.split('@')[0];
+                executeOrder(accountName);
+            } else {
+                document.getElementById('modal-checkout').classList.remove('hidden');
+            }
+        };
+
+        window.submitOrder = () => {
+            const guestName = document.getElementById('guest-name').value;
+            if(!guestName) return alert("Please enter a name for your ticket.");
+            executeOrder(guestName);
+        };
+
+        async function executeOrder(orderName) {
+            const trackingCode = "TKT-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+            const { data: orderData, error: orderError } = await supabase.from('orders').insert([{ merchant_id: currentMerchantId, tracking_code: trackingCode, guest_name: orderName, status: 'PROCESSING' }]).select();
+            if (orderError) return alert(orderError.message);
+
+            const orderItemsInsert = cart.map(item => ({ order_id: orderData[0].id, item_id: item.id, quantity: item.qty, special_notes: item.finalNote }));
+            await supabase.from('order_items').insert(orderItemsInsert);
+
+            // Clean up and transport immediately to beautiful tracking view
+            document.getElementById('guest-name').value = '';
+            document.getElementById('modal-checkout').classList.add('hidden'); 
+            cart = [];
+            updateCartUI();
+            showTracking(trackingCode);
+        }
+
+        // --- CUSTOMER TRACKING SYSTEM ---
+        window.executeTracking = async () => {
+            const code = document.getElementById('track-code-input').value.trim().toUpperCase();
+            if (!code) return;
+            
+            const container = document.getElementById('tracking-result-container');
+            container.innerHTML = '<p style="text-align: center;">Locating ticket...</p>';
+
+            const { data: order, error } = await supabase
+                .from('orders')
+                .select('*, merchants(name), order_items(quantity, special_notes, items(name))')
+                .eq('tracking_code', code)
+                .single();
+
+            if (error || !order) {
+                container.innerHTML = '<p style="color: #ef4444; text-align: center; font-weight: bold;">Ticket not found. Please check your code.</p>';
+                return;
+            }
+
+            const statusColors = { 'PROCESSING': '#64748B', 'PREPARING': '#F59E0B', 'COMPLETED': '#10B981', 'CANCELED': '#EF4444' };
+            const itemsHtml = order.order_items.map(oi => `
+                <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.5rem;">
+                    <span><strong>${oi.quantity}x</strong> ${oi.items ? oi.items.name : 'Item'} <br> <small style="color:var(--text-muted)">${oi.special_notes || ''}</small></span>
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <h3 style="font-size: 2.5rem; color: var(--primary); margin-bottom: 0;">${order.tracking_code}</h3>
+                    <p style="color: var(--text-muted); font-size: 1.1rem;">${order.merchants.name} • For: ${order.guest_name}</p>
+                </div>
+                <div class="status-badge" style="background-color: ${statusColors[order.status]};">
+                    ${order.status}
+                </div>
+                <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <h4 style="margin-bottom: 1rem; color: var(--text-muted);">Ticket Details</h4>
+                    ${itemsHtml}
+                </div>
+            `;
+        };
+
+        // --- MERCHANT AUTH & CMS ---
+        async function checkActiveSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                currentUser = session.user; document.getElementById('header-status').innerText = currentUser.email.split('@')[0];
+                document.getElementById('auth-btn').innerText = "Dashboard"; document.getElementById('auth-form').classList.add('hidden'); document.getElementById('user-dashboard').classList.remove('hidden');
+                const { data: shop } = await supabase.from('merchants').select('*').eq('owner_id', currentUser.id).single();
+                if (shop) {
+                    userOwnedShopId = shop.id; document.getElementById('shop-creation-card').classList.add('hidden'); document.getElementById('shop-management-card').classList.remove('hidden');
+                    document.getElementById('cms-shop-name').innerText = shop.name; document.getElementById('cms-banner-url').value = shop.banner_url || ''; loadCMSItems();
+                } else { document.getElementById('shop-creation-card').classList.remove('hidden'); document.getElementById('shop-management-card').classList.add('hidden'); }
+            } else {
+                currentUser = null; document.getElementById('header-status').innerText = "Guest"; document.getElementById('auth-btn').innerText = "Login / Sign Up";
+                document.getElementById('auth-form').classList.remove('hidden'); document.getElementById('user-dashboard').classList.add('hidden');
+            }
+        }
+
+        window.userLogin = async () => { const { error } = await supabase.auth.signInWithPassword({ email: document.getElementById('user-email').value, password: document.getElementById('user-password').value }); if(error) alert(error.message); else checkActiveSession(); };
+        window.userSignup = async () => { const { error } = await supabase.auth.signUp({ email: document.getElementById('user-email').value, password: document.getElementById('user-password').value }); if(error) alert(error.message); else { alert("Success!"); checkActiveSession(); }};
+        window.logout = async () => { await supabase.auth.signOut(); checkActiveSession(); showHome(); };
+        window.createShop = async () => { const { error } = await supabase.from('merchants').insert([{ name: document.getElementById('new-shop-name').value, owner_id: currentUser.id, is_guest_allowed: true }]); if (!error) { alert("Shop created!"); checkActiveSession(); fetchMerchants(); } };
+        
+        window.updateStoreBanner = async () => { 
+            const url = document.getElementById('cms-banner-url').value;
+            const { error } = await supabase.from('merchants').update({ banner_url: url }).eq('id', userOwnedShopId); 
+            if (error) {
+                alert("Database Error: " + error.message);
+            } else {
+                alert("Banner Updated Successfully!"); 
+                fetchMerchants(); 
+            }
+        };
+
+        // --- MERCHANT ITEM MODAL ---
+        let currentCMSItems = [];
+        async function loadCMSItems() {
+            const { data } = await supabase.from('items').select(`id, name, description, price, image_url, category, customization_groups(id, name)`).eq('merchant_id', userOwnedShopId);
+            currentCMSItems = data || [];
+            document.getElementById('cms-item-list').innerHTML = currentCMSItems.map(i => `
+                <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;" onclick="openMerchantItemModal('${i.id}')">
+                    <div>
+                        <strong>${i.name}</strong> <span style="color:var(--text-muted); font-size:0.9rem;">- ₱${i.price}</span>
+                        <div style="font-size:0.8rem; color:var(--primary);">${i.category || 'Uncategorized'}</div>
+                    </div>
+                    <span style="font-size: 0.85rem; color: var(--primary);">Edit ✎</span>
+                </div>
+            `).join('');
+        }
+
+        window.openMerchantItemModal = (itemId = null) => {
+            const modal = document.getElementById('modal-merchant-item');
+            if (itemId) {
+                const item = currentCMSItems.find(i => i.id === itemId);
+                document.getElementById('cms-item-modal-title').innerText = "Edit Item";
+                document.getElementById('cms-item-id').value = item.id;
+                document.getElementById('cms-item-name').value = item.name;
+                document.getElementById('cms-item-category').value = item.category || '';
+                document.getElementById('cms-item-desc').value = item.description || '';
+                document.getElementById('cms-item-price').value = item.price;
+                document.getElementById('cms-item-image').value = item.image_url || '';
+                
+                document.getElementById('cms-item-options-section').classList.remove('hidden');
+                document.getElementById('cms-item-existing-options').innerHTML = item.customization_groups.length > 0 
+                    ? item.customization_groups.map(g => `<div style="display:flex; justify-content:space-between; padding:0.5rem; background:#fff; border:1px solid var(--border); border-radius:6px; margin-bottom:0.5rem;"><span>${g.name}</span> <button class="small danger" onclick="deleteCustomizationGroup('${g.id}', '${itemId}')">Delete</button></div>`).join('') 
+                    : '<p style="color:var(--text-muted); font-size:0.9rem;">No options added yet.</p>';
+            } else {
+                document.getElementById('cms-item-modal-title').innerText = "Create New Item";
+                document.getElementById('cms-item-id').value = '';
+                document.getElementById('cms-item-name').value = '';
+                document.getElementById('cms-item-category').value = '';
+                document.getElementById('cms-item-desc').value = '';
+                document.getElementById('cms-item-price').value = '';
+                document.getElementById('cms-item-image').value = '';
+                document.getElementById('cms-item-options-section').classList.add('hidden');
+            }
+            modal.classList.remove('hidden');
+        };
+
+        window.saveMerchantItem = async () => {
+            const id = document.getElementById('cms-item-id').value;
+            const payload = {
+                merchant_id: userOwnedShopId, name: document.getElementById('cms-item-name').value, category: document.getElementById('cms-item-category').value || 'Uncategorized',
+                description: document.getElementById('cms-item-desc').value, price: parseFloat(document.getElementById('cms-item-price').value) || 0, image_url: document.getElementById('cms-item-image').value
+            };
+            if(!payload.name) return alert("Name required");
+
+            if (id) { await supabase.from('items').update(payload).eq('id', id); } 
+            else { await supabase.from('items').insert([payload]); }
+            
+            alert("Item Saved!"); document.getElementById('modal-merchant-item').classList.add('hidden'); loadCMSItems();
+        };
+
+        window.saveCustomization = async () => {
+            const itemId = document.getElementById('cms-item-id').value;
+            const groupName = document.getElementById('cust-group-name').value;
+            if(!groupName) return alert("Group needs a name");
+
+            const { data: groupData, error: grpErr } = await supabase.from('customization_groups').insert([{
+                item_id: itemId, name: groupName, input_type: document.getElementById('cust-group-type').value,
+                is_required: document.getElementById('cust-is-required').checked, max_selections: parseInt(document.getElementById('cust-max-selections').value) || 1
+            }]).select();
+
+            if(grpErr) return alert(grpErr.message);
+            const lines = document.getElementById('cust-options-list').value.split('\n').filter(l => l.trim() !== '');
+            const optionsToInsert = lines.map(line => { const parts = line.split(','); return { group_id: groupData[0].id, name: parts[0].trim(), additional_price: parts[1] ? parseFloat(parts[1].trim()) : 0 }; });
+
+            if(optionsToInsert.length > 0) await supabase.from('customization_options').insert(optionsToInsert);
+            alert("Options saved!"); document.getElementById('cms-add-option-form').classList.add('hidden'); 
+            await loadCMSItems(); openMerchantItemModal(itemId);
+        };
+
+        window.deleteCustomizationGroup = async (groupId, itemId) => {
+            if(!confirm("Are you sure you want to delete this option group?")) return;
+            await supabase.from('customization_groups').delete().eq('id', groupId);
+            await loadCMSItems(); openMerchantItemModal(itemId); 
+        };
+
+        // --- MERCHANT LIVE ORDERS ---
+        async function fetchMerchantOrders() {
+            if(!userOwnedShopId) return;
+            const { data: orders } = await supabase.from('orders').select(`
+                id, tracking_code, guest_name, status, created_at,
+                order_items( quantity, special_notes, items(name) )
+            `).eq('merchant_id', userOwnedShopId).order('created_at', { ascending: false });
+
+            const cols = { 'PROCESSING': '', 'PREPARING': '', 'COMPLETED': '', 'CANCELED': '' };
+
+            (orders||[]).forEach(o => {
+                const itemsHtml = o.order_items.map(oi => `<div style="font-size:0.9rem; margin-bottom:0.25rem;"><strong>${oi.quantity}x ${oi.items ? oi.items.name : 'Item'}</strong><br><span style="color:#666">${oi.special_notes||''}</span></div>`).join('');
+                const buttons = buildStatusButtons(o.id, o.status);
+                
+                const ticket = `
+                    <div class="order-ticket">
+                        <h5>${o.tracking_code}</h5>
+                        <div style="font-weight:bold; margin-bottom:0.5rem;">👤 ${o.guest_name}</div>
+                        <hr style="border:0; border-top:1px dashed var(--border); margin:0.5rem 0;">
+                        ${itemsHtml}
+                        <div style="margin-top: 1rem; display:flex; gap:0.5rem;">${buttons}</div>
+                    </div>`;
+                if(cols[o.status] !== undefined) cols[o.status] += ticket;
+            });
+
+            document.getElementById('orders-PROCESSING').innerHTML = cols['PROCESSING'] || '<p style="color:#999; font-size:0.85rem;">No orders</p>';
+            document.getElementById('orders-PREPARING').innerHTML = cols['PREPARING'] || '<p style="color:#999; font-size:0.85rem;">No orders</p>';
+            document.getElementById('orders-COMPLETED').innerHTML = cols['COMPLETED'] || '<p style="color:#999; font-size:0.85rem;">No orders</p>';
+            document.getElementById('orders-CANCELED').innerHTML = cols['CANCELED'] || '<p style="color:#999; font-size:0.85rem;">No orders</p>';
+        }
+
+        function buildStatusButtons(id, status) {
+            if (status === 'PROCESSING') return `<button class="small" onclick="updateOrderStatus('${id}', 'PREPARING')">Cook</button> <button class="small secondary" onclick="updateOrderStatus('${id}', 'CANCELED')">Cancel</button>`;
+            if (status === 'PREPARING') return `<button class="small" style="background:#10B981;" onclick="updateOrderStatus('${id}', 'COMPLETED')">Complete</button>`;
+            return '';
+        }
+
+        window.updateOrderStatus = async (orderId, newStatus) => { await supabase.from('orders').update({ status: newStatus }).eq('id', orderId); fetchMerchantOrders(); };
+
+        // --- INIT ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedShopId = urlParams.get('shop');
+        if (sharedShopId) { supabase.from('merchants').select('*').eq('id', sharedShopId).single().then(({data}) => { if (data) showMenu(sharedShopId, data.name, data.description, data.banner_url); else showHome(); }); } else { showHome(); }
+        fetchMerchants(); checkActiveSession();
+    </script>
+</body>
+</html>
