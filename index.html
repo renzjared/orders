@@ -159,6 +159,8 @@
                     <button onclick="userLogin()">Login</button>
                     <button class="secondary" onclick="userSignup()">Sign Up</button>
                 </div>
+                <!-- Add this line below -->
+                <button type="button" onclick="userResetPassword()" style="margin-top: 1rem; background: transparent; color: var(--primary); padding: 0; text-align: left; width: auto; font-size: 0.9rem;">Forgot your password?</button>
             </div>
 
             <div id="user-dashboard" class="hidden">
@@ -606,6 +608,19 @@
 
         window.userLogin = async () => { const { error } = await supabase.auth.signInWithPassword({ email: document.getElementById('user-email').value, password: document.getElementById('user-password').value }); if(error) alert(error.message); else checkActiveSession(); };
         window.userSignup = async () => { const { error } = await supabase.auth.signUp({ email: document.getElementById('user-email').value, password: document.getElementById('user-password').value }); if(error) alert(error.message); else { alert("Success!"); checkActiveSession(); }};
+        window.userResetPassword = async () => {
+            const email = document.getElementById('user-email').value.trim();
+            if (!email) return alert("Please type your email into the box first, then click Forgot Password.");
+            
+            // Send the email and tell Supabase to redirect them back to this exact page
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.href 
+            });
+            
+            if (error) alert("Error: " + error.message);
+            else alert("Password recovery email sent! Please check your inbox.");
+        };
+
         window.logout = async () => { await supabase.auth.signOut(); checkActiveSession(); showHome(); };
         window.createShop = async () => { const { error } = await supabase.from('merchants').insert([{ name: document.getElementById('new-shop-name').value, owner_id: currentUser.id, is_guest_allowed: true }]); if (!error) { alert("Shop created!"); checkActiveSession(); fetchMerchants(); } };
         
@@ -747,7 +762,28 @@
         const urlParams = new URLSearchParams(window.location.search);
         const sharedShopId = urlParams.get('shop');
         if (sharedShopId) { supabase.from('merchants').select('*').eq('id', sharedShopId).single().then(({data}) => { if (data) showMenu(sharedShopId, data.name, data.description, data.banner_url); else showHome(); }); } else { showHome(); }
-        fetchMerchants(); checkActiveSession();
+        fetchMerchants();
+        
+        // --- AUTH STATE LISTENER ---
+        // This listens for all auth events, including when a user returns from a password reset email
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                // The user clicked the reset link in their email
+                const newPassword = prompt("Welcome back! What would you like your new password to be?");
+                
+                if (newPassword) {
+                    const { error } = await supabase.auth.updateUser({ password: newPassword });
+                    if (error) {
+                        alert("Failed to update password: " + error.message);
+                    } else {
+                        alert("Success! Your password has been updated.");
+                    }
+                }
+            }
+            
+            // Always check the session state to update the UI (Login vs Dashboard)
+            checkActiveSession();
+        });
     </script>
 </body>
 </html>
